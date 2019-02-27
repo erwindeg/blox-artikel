@@ -18,7 +18,7 @@ Wij hebben deze architectuur toegepast bij de realisatie van een platform voor h
 
 ## Applicatie
 De 'We Are Blox' app maakt het mogelijk om eenvoudig te handelen in verschillende cryptocurrency. De gebruiker maakt een account aan (of logt in met een social media account), verifieert een ID bewijs doormiddel van het opsturen van een foto,
-kan geld storten met ideal / credit card / etc. en kan dit geld vervolgens gebruiken om een portfolio op te bouwen van BTC, ETH, XRP of andere crypto munten. Uiteraard is het mogelijk om de investeringen weer te verkopen terug te voorkopen en de Euro's
+kan geld storten met iDeal / credit card / etc. en kan dit geld vervolgens gebruiken om een portfolio op te bouwen van BTC, ETH, XRP of andere crypto munten. Uiteraard is het mogelijk om de investeringen weer te verkopen terug te voorkopen en de Euro's
 uit te keren naar een eigen bankrekening (Figuur 1).  
 
 ![weareblox](image1.jpg)
@@ -28,17 +28,17 @@ Figuur 1
 ## Architectuur & Technologie: CQRS, ES & Reactive
 Zoals gezegd is de communicatie tussen de services gebaseerd op een event log. In principe consumeren de services elkaars events zonder dat ze weten waar deze events vandaan komen of naar toe gaan. Ze publiceren de events op een eventbus. De eventbus 
 slaat vervolgens berichten op (append only) en publiceert deze naar alle event handlers. Een eventhandler kan gezien worden als een abonnement op een specifiek event. Dit is de enige manier waarop services onderling communiceren. 
-De gebruikers interactie met het platform gaat via een mobiele applicatie. We hebben ervoor gekozen om op de communicatie tussen de mobiele applicatie en de server backend op de traditionale manier via REST te laten verlopen. Zoals bekend is, is REST
+De gebruikers interactie met het platform gaat via een mobiele applicatie. We hebben ervoor gekozen om de communicatie tussen de mobiele applicatie en de server backend op de traditionale manier via REST te laten verlopen. Zoals bekend is, is REST
 in essentie een synchroon protocol. Als we kijken naar de functionaliteit, is het voor de gebruikers het fijnst als ze direct feedback krijgen op hun acties. Om dit te realiseren maken we gebruik van een REST facade die synchrone calls vertaalt naar
 onze asynchrone backend.
 
 ![architectuur](blox-architecture.jpg)
 Figuur 2
 
-De REST facade stuurt specifieke berichten naar de services, dit zijn Commands voor mutaties en Queries voor lees operaties. Het gebruik van deze berichten is afgeleid van CQRS. Voor de REST facade maken we gebruik van Spring Webflux, het reactieve zusje
-van Spring Web. Voor CQRS maken we gebruik van Axon Framework. De evenbus en eventstore worden geimplementeerd door 1 opensource product, AxonServer (2).
+De REST facade stuurt specifieke berichten naar de services, dit zijn Commands voor mutaties en Queries voor lees operaties. Het gebruik van deze berichten is gebaseerd van CQRS. Voor de REST facade maken we gebruik van Spring Webflux, het reactieve zusje
+van Spring Web. Voor CQRS maken we gebruik van Axon Framework. De eventbus en eventstore worden geimplementeerd door 1 opensource product, AxonServer (2). Deze kan dus zowel events opslaan als doorsturen naar de consumerende services.
 
-Aangezien de events voor onze de absolute waarheid zijn, moeten we deze events gebruiken voor het bepalen van de state van onze applicatie. Elk muterend Command wordt gevalideerd tegen de huidige state, de state wordt opgebouwd door de events af te spelen
+Aangezien de events voor ons de absolute waarheid zijn, moeten we deze events gebruiken voor het bepalen van de state van onze applicatie. Elk muterend Command wordt gevalideerd tegen de huidige state, de state wordt opgebouwd door de events af te spelen
 en toe te passen op een aggregate. Dit pattern heet Event Sourcing (3).
 
 ## Voorbeeld: het genereren van quotes
