@@ -83,7 +83,8 @@ De subscription query is een remote call, dus er kan van alles misgaan, inclusie
 filter geen items door. Om te voorkomen dat onze REST controller geen antwoord teruggeeft gebruiken we de timeout operatie, na de gespecificeerde timeout geeft deze een exceptie.
 We zijn maar geinteresseerd in 1 quote, 'next' is de operatie die ons het eerst volgende item teruggeeft. Deze transformeert de Flux (0 of meer) naar een Mono (0 of 1).
 We gebruiken de map operatie om te valideren en te converteren naar een QuoteResponse en uiteindelijk een ResponseEntity. Tot slot hebben we nog twee operaties voor Exception
-handling, zowel in het geval van een error of een lege waare geven we een HTTP status service unavailable terug (regel 4).
+handling, zowel in het geval van een error of een lege waare geven we een HTTP status service unavailable terug (regel 4). Het resultaat van deze chain is een Mono, aangezien we Spring Webflux
+gebruiken kunnen we deze Mono direct teruggeven. Spring zal subscriben op deze Mono en het resultaat parsen naar JSON als dit binnenkomt. Dit resultaat wordt als HTTP Response naar de client verstuurd.
 
   
 Listing 2 toont de ontvangende kant van de CreateQuote command waarin de quote wordt opgehaald van het externe systeem wat de markt data beheert. De call naar 
@@ -91,7 +92,7 @@ dit systeem wordt gedaan door de methode "requestQuoteFromTradingEngine" (regel 
 Een tweede voordeel van de 'flatMap' is dat we een retry kunnen doen om het moment dat er een fout optreedt. Als requestQuoteFromTradingEngine een exceptie gooit, dan wordt de 'retryWhen' operator aangeroepen. De 'retryWhen' operator is een variant op 'retry'.
 De standaard 'retry' resubscribed altijd in het geval van een Exceptie. In dit geval houdt dat in dat de code in de 'flatMap' opnieuw wordt uitgevoerd. Aan retryWhen kun je een publisher meegeven die 0 of 1 waarde teruggeeft (of een Exceptie). 
 In dit geval gebruiken we de reactor-extra library (4) om exponential backoff (5) toe te passen. Hierdoor kunnen we met een steeds grotere delay de externe functie opnieuw aanroepen. Ook kunnen we een maximum aantal retries meegeven. Als de externe aanroep
-blijft falen wordt er een exceptie gegooid. In het geval van een valide response sturen we een SuccessEvent, in het geval van een Exceptie een FailureEvent. Beide worden opgeslagen in onze Event Store, zodat we deze later kunnen afhandelen.
+blijft falen wordt er een exceptie gegooid. In het geval van een valide response sturen we een SuccessEvent, in het geval van een Exceptie een FailureEvent. Beide worden opgeslagen in onze eventstore, zodat we deze later kunnen afhandelen.
 
 ```java
 @CommandHandler
@@ -104,7 +105,8 @@ public void createQuote(CreateQuoteCommand command) {
                         eventBus.publish(asEventMessage(translator.createSuccessEvent(quote, command.getQuoteId())));
                         return Mono.empty();
                     })
-        ).retryWhen(Retry.any().exponentialBackoff(Duration.ofMillis(initialBackoff), Duration.ofMillis(maxBackoff)).retryMax(retryMax)) //2
+        ).retryWhen(Retry.any().exponentialBackoff(Duration.ofMillis(initialBackoff), 
+            Duration.ofMillis(maxBackoff)).retryMax(retryMax)) //2
         .doOnError(error -> eventBus.publish(asEventMessage(translator.createFailureEvent(command, error))))
         .subscribe();
 }
@@ -113,6 +115,7 @@ Listing 2
 
 Listing 3 toont de event handling kant waarin het resultaat wordt opgeslagen in een relationele database. Ook versturen we dit opgeslagen resultaat via de queryUpdateEmitter naar alle subscribers van de query (zie listing 1). Bij het versturen van dit resultaat
 is het mogelijk om een conditie mee te geven die bepaalt welke subscribers het resultaat ontvangen. Aan de subscribe kant (listing 1 regel 2) geven we een quote ID mee. Aan de versturende kant versturen we alleen een resultaat naar een subscriber met hetzelfde ID.
+Hiermee is deze specifieke use case af. De client ontvangt na een asynchrone omweg in de backend een synchrone response op de vraag. De gebruiker ziet op het scherm een quote voor het kopen van de cryptomunt!
 
 ```java
 @EventHandler
