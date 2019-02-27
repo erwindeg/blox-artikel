@@ -136,7 +136,7 @@ public void onFailure(QuoteRequestFailureEvent event) {
 Listing 3
 
 ## Uitdagingen
-Uiteraard zijn er ook uitdagingen verbonden aan deze manier van werken. Ten eerste zijn veel libraries nog niet reactive of zelfs niet asynchroon. Toen we het project begonnen was bijvoorbeeld Spring Security 5 nog niet volledig geimplementeerd op het gebied van OAuth. Verder 
+Uiteraard zijn er ook uitdagingen verbonden aan het gebruik van Spring WebFlux en Project Reactor. Ten eerste zijn veel libraries nog niet reactive of zelfs niet asynchroon. Toen we het project begonnen was bijvoorbeeld Spring Security 5 nog niet volledig geimplementeerd op het gebied van OAuth. Verder 
 maakt zowel het Axon Framework als Swagger (code generatie op basis van api specificaties) nog veelvuldig gebruik van Completable Futures. Deze zijn overigens eenvoudig om te zetten naar een Mono (Mono#toFuture & Mono.fromFuture).
 Unit tests vereisen ook enige aanpassing. Het helpt als de code die je test netjes een Flux (of Mono) teruggeeft. In de test heb je dan de mogelijkheid om hier op te subscriben (Flux#subscribe) of te blocken (Flux#blockFirst / Flux#blockLast). 
 Door te blocken wordt de code weer synchroon en wordt er gewacht op het eerste of laaste resultaat. Voor het in detail testen van reactive chains kun je gebruik maken van de StepVerifier (6). Spring Webflux controllers kun je testen met WebTestClient(7).
