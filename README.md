@@ -1,7 +1,6 @@
 # Event-driven microservices met Spring Webflux
-Microservice architecturen kennen aan de ene kant veel voordelen opleveren, maar kunnen ook complex zijn om te implementeren en onderhouden.
-In dit artikel bespreken we hoe we omgaan met de complexiteiten van microservices door gebruik te maken van event driven communicatie en 
-de reactive benadering van Spring Webflux   
+Microservice architecturen kunnen aan de ene kant veel voordelen opleveren, maar kunnen ook complex zijn om te implementeren en onderhouden.
+In dit artikel bespreken we hoe we omgaan met de complexiteiten van microservices door gebruik te maken van event driven communicatie en de reactive benadering van Spring Webflux.   
 
 
 ## Microservice communicatie
