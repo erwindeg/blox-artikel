@@ -20,7 +20,7 @@ De 'We Are Blox' app maakt het mogelijk om eenvoudig te handelen in verschillend
 kan geld storten met iDeal / credit card / etc. en kan dit geld vervolgens gebruiken om een portfolio op te bouwen van BTC, ETH, XRP of andere crypto munten. Uiteraard is het mogelijk om de investeringen weer te verkopen terug te voorkopen en de Euro's
 uit te keren naar een eigen bankrekening (Figuur 1).  
 
-![weareblox](image1.jpg)
+![weareblox](image1.jpg) 
 Figuur 1
 
 
@@ -31,7 +31,7 @@ De gebruikers interactie met het platform gaat via een mobiele applicatie. We he
 in essentie een synchroon protocol. Als we kijken naar de functionaliteit, is het voor de gebruikers het fijnst als ze direct feedback krijgen op hun acties. Om dit te realiseren maken we gebruik van een REST facade die synchrone calls vertaalt naar
 onze asynchrone backend.
 
-![architectuur](blox-architecture.jpg)
+![architectuur](blox-architecture.jpg) 
 Figuur 2
 
 De REST facade stuurt specifieke berichten naar de services, dit zijn Commands voor mutaties en Queries voor lees operaties. Het gebruik van deze berichten is gebaseerd van CQRS. Voor de REST facade maken we gebruik van Spring Webflux, het reactieve zusje
@@ -43,23 +43,26 @@ en toe te passen op een aggregate. Dit pattern heet Event Sourcing (3).
 ## Voorbeeld: het genereren van quotes
 Voordat een gebruiker crypto currency kan kopen of verkopen, moet deze een prijs aanvragen, dit noemen we een quote. Bij deze actie wil de gebruiker direct resultaat zien op het scherm (Figuur 3).
  
-![weareblox](image2.jpg)
+![weareblox](image2.jpg) 
 Figuur 3
 
 De code van de REST facade voor deze functie is te vinden in Listing 1.
 
 ```java
-@RequestMapping(value = "/quote",produces = {"application/json;charset=UTF-8"},method = RequestMethod.POST)
-public Mono<ResponseEntity<QuoteResponse>> createQuote(@Valid @RequestBody QuoteRequest quoteRequest) {
+@RequestMapping(value = "/quote",
+    produces = {"application/json;charset=UTF-8"},method = RequestMethod.POST)
+public Mono<ResponseEntity<QuoteResponse>> createQuote(@RequestBody QuoteRequest quoteRequest) {
     String quoteId = UUID.randomUUID().toString(); //1
 
-    Flux<FindQuoteResponse> quoteResponseFlux = this.queryGateway
-        .subscriptionQuery(new FindQuoteQuery(quoteId), FindQuoteResponse.class, FindQuoteResponse.class)
+    Flux<FindQuoteResponse> quoteResponse = this.queryGateway
+        .subscriptionQuery(new FindQuoteQuery(quoteId), 
+                                FindQuoteResponse.class, 
+                                FindQuoteResponse.class)
         .updates(); //2
     
     this.commandGateway.send(translator.createQuoteCommand(quoteId, quoteRequest)); //3
 
-    return quoteResponseFlux
+    return quoteResponse
         .filter(response -> response.getQuoteEntry() != null)
         .timeout(Duration.ofMillis(timoutMillis))
         .next()
@@ -102,12 +105,17 @@ public void createQuote(CreateQuoteCommand command) {
             requestQuoteFromTradingEngine(command) //1
                 .flatMap(
                     quote -> {
-                        eventBus.publish(asEventMessage(translator.createSuccessEvent(quote, command.getQuoteId())));
+                        eventBus.publish(
+                                asEventMessage(
+                                        translator
+                                            .createSuccessEvent(quote, 
+                                                command.getQuoteId())));
                         return Mono.empty();
                     })
         ).retryWhen(Retry.any().exponentialBackoff(Duration.ofMillis(initialBackoff), 
             Duration.ofMillis(maxBackoff)).retryMax(retryMax)) //2
-        .doOnError(error -> eventBus.publish(asEventMessage(translator.createFailureEvent(command, error))))
+        .doOnError(error -> eventBus.publish(
+                asEventMessage(translator.createFailureEvent(command, error))))
         .subscribe();
 }
 ```
@@ -122,26 +130,31 @@ Hiermee is deze specifieke use case af. De client ontvangt na een asynchrone omw
 public void onSuccess(QuoteRequestSuccessEvent event) {
     QuoteEntry quoteEntry = createSuccessQuoteEntryFromEvent(event);
     entityManager.persist(quoteEntry);
-    this.queryUpdateEmitter.emit(FindQuoteQuery.class, query -> quoteEntry.getQuoteId().equals(query.getQuoteId()), new FindQuoteResponse(quoteEntry));
+    this.queryUpdateEmitter.emit(FindQuoteQuery.class, 
+        query -> quoteEntry.getQuoteId().equals(query.getQuoteId()),
+            new FindQuoteResponse(quoteEntry));
   }
 
 @EventHandler
 public void onFailure(QuoteRequestFailureEvent event) {   
     QuoteEntry quoteEntry = createFailureQuoteEntryFromEvent(event);
     entityManager.persist(quoteEntry);
-    this.queryUpdateEmitter.emit(FindQuoteQuery.class, query -> quoteEntry.getQuoteId().equals(query.getQuoteId()), new FindQuoteResponse(quoteEntry));
+    this.queryUpdateEmitter.emit(FindQuoteQuery.class,
+        query -> quoteEntry.getQuoteId().equals(query.getQuoteId()), 
+            new FindQuoteResponse(quoteEntry));
 }
 
 ```
 Listing 3
 
-## Uitdagingen
+## Caveats
 Uiteraard zijn er ook uitdagingen verbonden aan het gebruik van Spring WebFlux en Project Reactor. Ten eerste zijn veel libraries nog niet reactive of zelfs niet asynchroon. Toen we het project begonnen was bijvoorbeeld Spring Security 5 nog niet volledig geimplementeerd op het gebied van OAuth. Verder 
-maakt zowel het Axon Framework als Swagger (code generatie op basis van api specificaties) nog veelvuldig gebruik van Completable Futures. Deze zijn overigens eenvoudig om te zetten naar een Mono (Mono#toFuture & Mono.fromFuture).
-Unit tests vereisen ook enige aanpassing. Het helpt als de code die je test netjes een Flux (of Mono) teruggeeft. In de test heb je dan de mogelijkheid om hier op te subscriben (Flux#subscribe) of te blocken (Flux#blockFirst / Flux#blockLast). 
+maakt zowel het Axon Framework als Swagger (code generatie op basis van api specificaties) nog veelvuldig gebruik van Completable Futures. Deze zijn overigens eenvoudig om te zetten naar een Mono (Mono.toFuture & Mono.fromFuture).
+Unit tests vereisen ook enige aanpassing. Het helpt als de code die je test netjes een Flux (of Mono) teruggeeft. In de test heb je dan de mogelijkheid om hier op te subscriben (Flux.subscribe) of te blocken (Flux.blockFirst / Flux.blockLast). 
 Door te blocken wordt de code weer synchroon en wordt er gewacht op het eerste of laaste resultaat. Voor het in detail testen van reactive chains kun je gebruik maken van de StepVerifier (6). Spring Webflux controllers kun je testen met WebTestClient(7).
 Step through debugging is niet echt mogelijk, omdat je dan het opbouwen van de reactive chain debugged. Eventueel kun je een breakpoint zetten in een lambda statement. Het is ook mogelijk om de logging expressiever te maken. Listing 4 toont het gebruik van de 'log' operator,
 deze zorgt ervoor dat elke operatie aanroep wordt gelogd. Ook kun je gebruik maken van de 'doOnXXX' operators. Deze operators zijn specifiek bedoelt voor het operaties met side effects, zoals logging. Er is bijvoorbeeld een doOnError en een doOnEach.
+Tot slot zal het opgevallen zijn dat we gebruike maken van de non-reactive en blocking Spring Data JPA. Dit is mogelijk omdat al onze Spring Data aanroepen in een Event Handler of Query Handler plaatsvinden. Deze worden altijd op een aparte thread uitgevoerd en blocken dus niet de main thread.
  
 
 ```java
